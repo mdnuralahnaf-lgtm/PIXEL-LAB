@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pixel Lab</title>
+<style>
+:root{--bg:#14172a;--panel:#1d2140;--line:#323862;--text:#e8eaf6;--dim:#9aa0c4;--accent:#ff7a93;--ok:#5eead4;--warn:#fcd34d}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,sans-serif;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0 auto 0 0}
+select,button{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,select:hover{border-color:var(--dim)}
+button.run{background:var(--accent);border-color:var(--accent);color:#2a0d15;font-weight:700}
+label{color:var(--dim);display:flex;gap:6px;align-items:center}
+:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+main{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0}
+section{display:flex;flex-direction:column;min-height:0;min-width:0}
+section+section{border-left:1px solid var(--line)}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-radius:0;background:none;color:var(--dim);padding:9px 16px;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+.tabs span{margin-left:auto;padding:9px 14px;color:var(--ok);font-size:13px}
+textarea{flex:1;width:100%;resize:none;border:0;background:var(--panel);color:var(--text);padding:14px;font:14px/1.55 ui-monospace,Menlo,Consolas,monospace;tab-size:2;white-space:pre;display:none}
+textarea.on{display:block}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:4px 14px;border-bottom:1px solid var(--line);color:var(--dim);font-size:13px}
+.bar button{padding:3px 10px;font-size:13px}
+iframe{flex:1;width:100%;border:0;background:#fff;min-height:0}
+#log{height:30%;overflow:auto;background:var(--panel);border-top:1px solid var(--line);padding:8px 14px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace}
+#log div{border-bottom:1px solid var(--line);padding:2px 0}
+#log .error{color:var(--accent)}#log .warn{color:var(--warn)}
+#out.full{position:fixed;inset:0;z-index:9;height:100%}
+#exit{display:none;position:fixed;top:10px;right:10px;z-index:10}
+@media(max-width:760px){main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}section+section{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Pixel Lab</h1>
+  <select id="examples" aria-label="Load an example"></select>
+  <label><input type="checkbox" id="auto" checked> Live</label>
+  <button id="save">Save</button>
+  <button id="dl">Download</button>
+  <button id="run" class="run">Run</button>
+</header>
+<main>
+  <section>
+    <div class="tabs" role="tablist">
+      <button class="on" data-t="html">HTML</button>
+      <button data-t="css">CSS</button>
+      <button data-t="js">JavaScript</button>
+      <span id="status"></span>
+    </div>
+    <textarea id="html" class="on" spellcheck="false" aria-label="HTML"></textarea>
+    <textarea id="css" spellcheck="false" aria-label="CSS"></textarea>
+    <textarea id="js" spellcheck="false" aria-label="JavaScript"></textarea>
+  </section>
+  <section>
+    <div class="bar"><span>Output</span><button id="full">Fullscreen</button></div>
+    <iframe id="out" sandbox="allow-scripts" title="Output"></iframe>
+    <div class="bar"><span>Console</span><button id="clear">Clear</button></div>
+    <div id="log" aria-live="polite"></div>
+  </section>
+</main>
+<button id="exit">Exit fullscreen</button>
+<script>
+const EX = {
+"Bouncing balls": {
+html:`<canvas id="c"></canvas>`,
+css:`body{margin:0;background:#0f1226}canvas{display:block}`,
+js:`const c=document.getElementById('c'),x=c.getContext('2d');
+function fit(){c.width=innerWidth;c.height=innerHeight}fit();onresize=fit;
+const balls=Array.from({length:25},()=>({x:Math.random()*c.width,y:Math.random()*c.height,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,r:8+Math.random()*16,h:Math.random()*360}));
+(function loop(){
+  x.fillStyle='rgba(15,18,38,.25)';x.fillRect(0,0,c.width,c.height);
+  for(const b of balls){
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.x<b.r||b.x>c.width-b.r)b.vx*=-1;
+    if(b.y<b.r||b.y>c.height-b.r)b.vy*=-1;
+    x.fillStyle='hsl('+b.h+',80%,65%)';
+    x.beginPath();x.arc(b.x,b.y,b.r,0,7);x.fill();
+  }
+  requestAnimationFrame(loop);
+})();`},
+"Starfield": {
+html:`<canvas id="c"></canvas>`,
+css:`body{margin:0;background:#000}canvas{display:block}`,
+js:`const c=document.getElementById('c'),x=c.getContext('2d');
+function fit(){c.width=innerWidth;c.height=innerHeight}fit();onresize=fit;
+const stars=Array.from({length:300},()=>({x:Math.random()*2-1,y:Math.random()*2-1,z:Math.random()}));
+(function loop(){
+  x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);
+  x.fillStyle='#fff';
+  for(const s of stars){
+    s.z-=0.006;if(s.z<=0){s.x=Math.random()*2-1;s.y=Math.random()*2-1;s.z=1}
+    const px=c.width/2+s.x/s.z*c.width/4,py=c.height/2+s.y/s.z*c.height/4;
+    x.fillRect(px,py,2.5*(1-s.z)+.5,2.5*(1-s.z)+.5);
+  }
+  requestAnimationFrame(loop);
+})();`},
+"Matrix rain": {
+html:`<canvas id="c"></canvas>`,
+css:`body{margin:0;background:#000}canvas{display:block}`,
+js:`const c=document.getElementById('c'),x=c.getContext('2d');
+function fit(){c.width=innerWidth;c.height=innerHeight}fit();onresize=fit;
+const size=16,chars='01アイウエオカキクケコ'.split('');
+let drops=Array(Math.ceil(c.width/size)).fill(0);
+setInterval(()=>{
+  x.fillStyle='rgba(0,0,0,.08)';x.fillRect(0,0,c.width,c.height);
+  x.fillStyle='#5eead4';x.font=size+'px monospace';
+  drops.forEach((y,i)=>{
+    x.fillText(chars[Math.floor(Math.random()*chars.length)],i*size,y*size);
+    drops[i]=(y*size>c.height&&Math.random()>.97)?0:y+1;
+  });
+},45);`},
+"Sine waves": {
+html:`<canvas id="c"></canvas>`,
+css:`body{margin:0;background:#12142a}canvas{display:block}`,
+js:`const c=document.getElementById('c'),x=c.getContext('2d');
+function fit(){c.width=innerWidth;c.height=innerHeight}fit();onresize=fit;
+let t=0;
+(function loop(){
+  x.clearRect(0,0,c.width,c.height);
+  for(let k=0;k<6;k++){
+    x.strokeStyle='hsl('+(k*50+t*20)+',80%,65%)';x.lineWidth=3;x.beginPath();
+    for(let px=0;px<=c.width;px+=4){
+      const py=c.height/2+Math.sin(px*0.01+t+k*0.6)*(40+k*18);
+      px?x.lineTo(px,py):x.moveTo(px,py);
+    }
+    x.stroke();
+  }
+  t+=0.03;requestAnimationFrame(loop);
+})();`},
+"Spinning squares": {
+html:`<div class="box"></div><div class="box"></div><div class="box"></div>`,
+css:`body{margin:0;height:100vh;display:grid;place-items:center;background:#101426}
+.box{position:absolute;width:120px;height:120px;border:3px solid #ff7a93;animation:spin 6s linear infinite}
+.box:nth-child(2){width:180px;height:180px;border-color:#5eead4;animation-duration:9s;animation-direction:reverse}
+.box:nth-child(3){width:240px;height:240px;border-color:#fcd34d;animation-duration:12s}
+@keyframes spin{to{transform:rotate(360deg)}}`,
+js:``},
+"Click counter": {
+html:`<h1>Clicks: <span id="n">0</span></h1><button id="b">Click me</button>`,
+css:`body{font-family:sans-serif;padding:24px;background:#fff;color:#222}button{font-size:18px;padding:10px 18px}`,
+js:`let n=0;
+document.getElementById('b').onclick=()=>{
+  n++;document.getElementById('n').textContent=n;
+  console.log('Clicked '+n+' times');
+  if(n===5)console.warn('That is a lot of clicks!');
+};`}
+};
+
+const $=id=>document.getElementById(id);
+const ids=['html','css','js'], ta=Object.fromEntries(ids.map(i=>[i,$(i)]));
+const out=$('out'), log=$('log'), KEY='pixelLab.v1';
+
+$('examples').innerHTML='<option value="">Load an example…</option>'+Object.keys(EX).map(k=>`<option>${k}</option>`).join('');
+
+function doc(){
+  const hook='<script>(function(){function s(t,a){parent.postMessage({log:t,msg:Array.from(a).map(String).join(" ")},"*")}'
+   +'["log","warn","error"].forEach(function(t){var o=console[t];console[t]=function(){s(t,arguments);o.apply(console,arguments)}});'
+   +'onerror=function(m,u,l){s("error",[m+" (line "+l+")"])}})()<\/script>';
+  return '<!DOCTYPE html><html><head><meta charset="utf-8">'+hook+'<style>'+ta.css.value+'</style></head><body>'+ta.html.value+'<script>'+ta.js.value+'<\/script></body></html>';
+}
+function run(){ log.innerHTML=''; out.srcdoc=doc(); }
+addEventListener('message',e=>{
+  if(!e.data||!e.data.log)return;
+  const d=document.createElement('div'); d.className=e.data.log; d.textContent=e.data.msg;
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+});
+
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify({html:ta.html.value,css:ta.css.value,js:ta.js.value}));flash('Saved')}
+  catch(e){flash('Could not save')}
+}
+function flash(m){$('status').textContent=m;setTimeout(()=>$('status').textContent='',1500)}
+function load(ex){ids.forEach(i=>ta[i].value=ex[i]||'')}
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ids.forEach(i=>ta[i].classList.toggle('on',i===b.dataset.t));
+  ta[b.dataset.t].focus();
+});
+$('examples').onchange=e=>{const k=e.target.value;if(EX[k]){load(EX[k]);run()}e.target.value=''};
+$('run').onclick=run; $('save').onclick=save; $('clear').onclick=()=>log.innerHTML='';
+$('dl').onclick=()=>{
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([doc().replace(/<script>\(function\(\)[\s\S]*?<\/script>/,'')],{type:'text/html'}));
+  a.download='my-creation.html';a.click();URL.revokeObjectURL(a.href);
+};
+function full(on){out.classList.toggle('full',on);$('exit').style.display=on?'block':'none'}
+$('full').onclick=()=>full(true); $('exit').onclick=()=>full(false);
+addEventListener('keydown',e=>{if(e.key==='Escape')full(false)});
+
+let t;
+ids.forEach(i=>{
+  ta[i].addEventListener('input',()=>{if($('auto').checked){clearTimeout(t);t=setTimeout(run,600)}});
+  ta[i].addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run()}
+    if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();save()}
+    if(e.key==='Tab'){e.preventDefault();ta[i].setRangeText('  ',ta[i].selectionStart,ta[i].selectionEnd,'end')}
+  });
+});
+
+let s=null;try{s=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+load(s||EX["Starfield"]);
+run();
+</script>
+</body>
+</html>
